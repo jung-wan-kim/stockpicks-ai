@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Home, TrendingUp, BarChart3, Star, Activity, Lightbulb, Settings, Bell, Search, LogOut } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Recommendations } from "./components/Recommendations";
@@ -9,28 +9,29 @@ import { MarketInsights } from "./components/MarketInsights";
 import { SettingsPage } from "./components/SettingsPage";
 import { SubscriptionModal } from "./components/SubscriptionModal";
 import { useAuth } from "./hooks/useAuth";
+import { useSubscription } from "./hooks/useSubscription";
 import { signOut } from "./lib/supabase";
 
 type PageType = "dashboard" | "recommendations" | "analysis" | "mypicks" | "performance" | "insights" | "settings";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("dashboard");
-  const [isPremium, setIsPremium] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const { user, isAuthenticated, loading } = useAuth();
+  const { isPremium, subscription, refetch: refetchSubscription } = useSubscription();
 
   const handleUnlock = () => {
     setShowSubscriptionModal(true);
   };
 
   const handleSubscribe = () => {
-    setIsPremium(true);
+    // Refetch subscription status after successful payment
+    refetchSubscription();
     setShowSubscriptionModal(false);
   };
 
   const handleSignOut = async () => {
     await signOut();
-    setIsPremium(false);
   };
 
   const menuItems = [
@@ -157,7 +158,7 @@ function App() {
                         </div>
                         <div className="content-stretch flex flex-col items-start relative shrink-0 w-full">
                           <div className="flex flex-col font-['Liberation_Sans:Regular',sans-serif] h-[14px] justify-center leading-[0] not-italic relative shrink-0 text-[11px] text-gray-500">
-                            <p className="leading-[14px]">{isPremium ? "Premium Plan" : "Free Plan"}</p>
+                            <p className="leading-[14px]">{isPremium ? `Pro ${subscription?.plan === 'yearly' ? 'Yearly' : 'Monthly'}` : "Free Plan"}</p>
                           </div>
                         </div>
                       </div>
@@ -259,6 +260,7 @@ function App() {
         onSubscribe={handleSubscribe}
         isAuthenticated={isAuthenticated}
         userEmail={user?.email}
+        userId={user?.id}
       />
     </div>
   );
