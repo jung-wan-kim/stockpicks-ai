@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, TrendingUp, BarChart3, Star, Activity, Lightbulb, Settings, Bell, Search } from "lucide-react";
+import { Home, TrendingUp, BarChart3, Star, Activity, Lightbulb, Settings, Bell, Search, LogOut } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Recommendations } from "./components/Recommendations";
 import { Analysis } from "./components/Analysis";
@@ -8,6 +8,8 @@ import { Performance } from "./components/Performance";
 import { MarketInsights } from "./components/MarketInsights";
 import { SettingsPage } from "./components/SettingsPage";
 import { SubscriptionModal } from "./components/SubscriptionModal";
+import { useAuth } from "./hooks/useAuth";
+import { signOut } from "./lib/supabase";
 
 type PageType = "dashboard" | "recommendations" | "analysis" | "mypicks" | "performance" | "insights" | "settings";
 
@@ -15,6 +17,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("dashboard");
   const [isPremium, setIsPremium] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const { user, isAuthenticated, loading } = useAuth();
 
   const handleUnlock = () => {
     setShowSubscriptionModal(true);
@@ -23,6 +26,11 @@ function App() {
   const handleSubscribe = () => {
     setIsPremium(true);
     setShowSubscriptionModal(false);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsPremium(false);
   };
 
   const menuItems = [
@@ -123,24 +131,45 @@ function App() {
               <div className="flex flex-row items-center size-full">
                 <div className="bg-clip-padding border-0 border-[transparent] border-solid box-border content-stretch flex items-center px-[12px] py-[10px] relative w-full">
                   <div className="max-w-[223px] relative rounded-[9999px] shrink-0 size-[32px]">
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[9999px] bg-white flex items-center justify-center">
-                      <span className="text-black text-[14px]">AI</span>
-                    </div>
+                    {isAuthenticated && user?.user_metadata?.avatar_url ? (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt="Profile"
+                        className="absolute inset-0 w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[9999px] bg-white flex items-center justify-center">
+                        <span className="text-black text-[14px]">
+                          {isAuthenticated ? user?.email?.charAt(0).toUpperCase() : "AI"}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="box-border content-stretch flex flex-col items-start pl-[10px] pr-0 py-0 relative shrink-0">
+                  <div className="box-border content-stretch flex flex-col items-start pl-[10px] pr-0 py-0 relative shrink-0 flex-1">
                     <div className="content-stretch flex flex-col items-start relative shrink-0">
                       <div className="content-stretch flex flex-col items-start relative shrink-0 w-full">
-                        <div className="flex flex-col font-['Liberation_Sans:Regular',sans-serif] h-[18px] justify-center leading-[0] not-italic relative shrink-0 text-[13px] text-white w-[74.72px]">
-                          <p className="leading-[18px]">AI Advisor</p>
+                        <div className="flex flex-col font-['Liberation_Sans:Regular',sans-serif] h-[18px] justify-center leading-[0] not-italic relative shrink-0 text-[13px] text-white">
+                          <p className="leading-[18px] truncate max-w-[120px]">
+                            {isAuthenticated ? (user?.user_metadata?.full_name || user?.email?.split('@')[0]) : "AI Advisor"}
+                          </p>
                         </div>
                       </div>
                       <div className="content-stretch flex flex-col items-start relative shrink-0 w-full">
-                        <div className="flex flex-col font-['Liberation_Sans:Regular',sans-serif] h-[14px] justify-center leading-[0] not-italic relative shrink-0 text-[11px] text-gray-500 w-[94.05px]">
+                        <div className="flex flex-col font-['Liberation_Sans:Regular',sans-serif] h-[14px] justify-center leading-[0] not-italic relative shrink-0 text-[11px] text-gray-500">
                           <p className="leading-[14px]">{isPremium ? "Premium Plan" : "Free Plan"}</p>
                         </div>
                       </div>
                     </div>
                   </div>
+                  {isAuthenticated && (
+                    <button
+                      onClick={handleSignOut}
+                      className="text-gray-500 hover:text-white transition-colors ml-[8px]"
+                      title="Sign out"
+                    >
+                      <LogOut className="size-[16px]" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -210,6 +239,8 @@ function App() {
         isOpen={showSubscriptionModal}
         onClose={() => setShowSubscriptionModal(false)}
         onSubscribe={handleSubscribe}
+        isAuthenticated={isAuthenticated}
+        userEmail={user?.email}
       />
     </div>
   );
