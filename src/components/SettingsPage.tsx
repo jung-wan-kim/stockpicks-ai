@@ -1,8 +1,27 @@
 import { useState } from "react";
-import { User, Bell, Shield, CreditCard, Globe, Palette, Save } from "lucide-react";
+import { User, Bell, Shield, CreditCard, Globe, Palette, Save, LogIn } from "lucide-react";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 
-export function SettingsPage() {
+interface SettingsPageProps {
+  user?: SupabaseUser | null;
+  isAuthenticated?: boolean;
+  onLogin?: () => void;
+}
+
+export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState("profile");
+
+  // Extract user info from Google OAuth
+  const userMetadata = user?.user_metadata || {};
+  const fullName = userMetadata.full_name || userMetadata.name || "";
+  const nameParts = fullName.split(" ");
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join(" ") || "";
+  const email = user?.email || "";
+  const avatarUrl = userMetadata.avatar_url || userMetadata.picture || "";
+  const initials = firstName && lastName
+    ? `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+    : email ? email.charAt(0).toUpperCase() : "?";
 
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
@@ -44,68 +63,94 @@ export function SettingsPage() {
           {activeTab === "profile" && (
             <div>
               <h3 className="text-white text-[20px] mb-[24px]">Profile Settings</h3>
-              
-              <div className="space-y-[24px]">
-                <div className="flex items-center gap-[24px]">
-                  <div className="size-[80px] bg-blue-500 rounded-full flex items-center justify-center text-white text-[32px]">
-                    JT
-                  </div>
-                  <button className="px-[16px] py-[8px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors text-[14px]">
-                    Change Photo
+
+              {!isAuthenticated ? (
+                <div className="flex flex-col items-center justify-center py-[60px]">
+                  <User className="size-[48px] text-gray-600 mb-[16px]" />
+                  <h4 className="text-white text-[18px] mb-[8px]">Sign in to view your profile</h4>
+                  <p className="text-gray-500 text-[14px] mb-[24px]">Access your account settings after logging in</p>
+                  <button
+                    onClick={onLogin}
+                    className="flex items-center gap-[8px] px-[20px] py-[12px] bg-white text-black rounded-[6px] hover:bg-gray-200 transition-colors"
+                  >
+                    <LogIn className="size-[16px]" />
+                    Sign in with Google
                   </button>
                 </div>
+              ) : (
+                <div className="space-y-[24px]">
+                  <div className="flex items-center gap-[24px]">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Profile"
+                        className="size-[80px] rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="size-[80px] bg-blue-500 rounded-full flex items-center justify-center text-white text-[32px]">
+                        {initials}
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-white text-[18px] mb-[4px]">{fullName || "User"}</div>
+                      <div className="text-gray-400 text-[14px]">{email}</div>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 gap-[16px]">
+                  <div className="grid grid-cols-2 gap-[16px]">
+                    <div>
+                      <label className="text-gray-400 text-[14px] block mb-[8px]">First Name</label>
+                      <input
+                        type="text"
+                        defaultValue={firstName}
+                        className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-gray-400 text-[14px] block mb-[8px]">Last Name</label>
+                      <input
+                        type="text"
+                        defaultValue={lastName}
+                        className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
+                      />
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="text-gray-400 text-[14px] block mb-[8px]">First Name</label>
+                    <label className="text-gray-400 text-[14px] block mb-[8px]">Email Address</label>
                     <input
-                      type="text"
-                      defaultValue="John"
+                      type="email"
+                      value={email}
+                      disabled
+                      className="w-full bg-gray-800 text-gray-400 rounded-[4px] px-[12px] py-[10px] border border-gray-600 cursor-not-allowed"
+                    />
+                    <p className="text-gray-500 text-[11px] mt-[4px]">Email is managed by your Google account</p>
+                  </div>
+
+                  <div>
+                    <label className="text-gray-400 text-[14px] block mb-[8px]">Phone Number</label>
+                    <input
+                      type="tel"
+                      placeholder="Add phone number"
                       className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                     />
                   </div>
+
                   <div>
-                    <label className="text-gray-400 text-[14px] block mb-[8px]">Last Name</label>
-                    <input
-                      type="text"
-                      defaultValue="Trader"
+                    <label className="text-gray-400 text-[14px] block mb-[8px]">Bio</label>
+                    <textarea
+                      placeholder="Tell us about yourself..."
+                      rows={4}
                       className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="text-gray-400 text-[14px] block mb-[8px]">Email Address</label>
-                  <input
-                    type="email"
-                    defaultValue="john.trader@example.com"
-                    className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
-                  />
+                  <button className="flex items-center gap-[8px] px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors">
+                    <Save className="size-[16px]" />
+                    Save Changes
+                  </button>
                 </div>
-
-                <div>
-                  <label className="text-gray-400 text-[14px] block mb-[8px]">Phone Number</label>
-                  <input
-                    type="tel"
-                    defaultValue="+1 (555) 123-4567"
-                    className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-gray-400 text-[14px] block mb-[8px]">Bio</label>
-                  <textarea
-                    defaultValue="Professional trader with 10+ years of experience"
-                    rows={4}
-                    className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
-                  />
-                </div>
-
-                <button className="flex items-center gap-[8px] px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors">
-                  <Save className="size-[16px]" />
-                  Save Changes
-                </button>
-              </div>
+              )}
             </div>
           )}
 
