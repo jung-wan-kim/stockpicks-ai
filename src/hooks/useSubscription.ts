@@ -5,10 +5,12 @@ import { useAuth } from './useAuth';
 export interface Subscription {
   id: string;
   user_id: string;
-  status: 'active' | 'cancelled' | 'expired' | 'past_due' | 'trialing';
-  plan: 'monthly' | 'yearly';
-  lemon_squeezy_subscription_id: string;
-  current_period_end: string;
+  tier: 'basic' | 'premium' | 'professional';
+  status: 'active' | 'cancelled' | 'expired' | 'trial' | 'past_due' | 'trialing';
+  plan?: 'monthly' | 'yearly' | null;
+  lemon_squeezy_subscription_id?: string | null;
+  started_at: string;
+  expires_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +37,8 @@ export function useSubscription() {
         .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
@@ -82,19 +86,21 @@ export function useSubscription() {
     };
   }, [user?.id, fetchSubscription]);
 
-  const isPremium = subscription?.status === 'active';
+  // Premium if subscription is active and tier is premium or professional
+  const isPremium = subscription?.status === 'active' &&
+    (subscription?.tier === 'premium' || subscription?.tier === 'professional');
 
   const isExpiringSoon = useCallback(() => {
-    if (!subscription?.current_period_end) return false;
-    const endDate = new Date(subscription.current_period_end);
+    if (!subscription?.expires_at) return false;
+    const endDate = new Date(subscription.expires_at);
     const now = new Date();
     const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return daysUntilExpiry <= 7 && daysUntilExpiry > 0;
   }, [subscription]);
 
   const daysUntilExpiry = useCallback(() => {
-    if (!subscription?.current_period_end) return null;
-    const endDate = new Date(subscription.current_period_end);
+    if (!subscription?.expires_at) return null;
+    const endDate = new Date(subscription.expires_at);
     const now = new Date();
     return Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   }, [subscription]);

@@ -121,23 +121,30 @@ serve(async (req) => {
           cancelled: 'cancelled',
           expired: 'expired',
           past_due: 'past_due',
-          on_trial: 'trialing',
+          on_trial: 'trial',
           unpaid: 'past_due',
           paused: 'cancelled',
         };
 
         const status = statusMap[attributes.status] || 'active';
 
-        // Upsert subscription record
+        // Calculate expires_at (1 month for monthly, 1 year for yearly)
+        const expiresAt = attributes.renews_at
+          ? new Date(attributes.renews_at).toISOString()
+          : null;
+
+        // Insert or update subscription record
         const { error: upsertError } = await supabase
           .from('subscriptions')
           .upsert(
             {
               user_id: userId,
+              tier: 'premium',
               status,
               plan,
               lemon_squeezy_subscription_id: String(attributes.subscription_id || payload.data.id),
-              current_period_end: attributes.renews_at || null,
+              expires_at: expiresAt,
+              started_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             },
             { onConflict: 'user_id' }
