@@ -58,7 +58,7 @@ function App() {
       case "insights":
         return <MarketInsights isPremium={isPremium} onUnlock={handleUnlock} />;
       case "settings":
-        return <SettingsPage />;
+        return <SettingsPage user={user} isAuthenticated={isAuthenticated} onLogin={handleUnlock} />;
       default:
         return <Dashboard isPremium={isPremium} onUnlock={handleUnlock} />;
     }
