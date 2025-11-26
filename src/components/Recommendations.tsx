@@ -1,128 +1,7 @@
-import { useState } from "react";
-import { Sparkles, TrendingUp, TrendingDown, Star, Filter } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, TrendingUp, TrendingDown, Star, Filter, Loader2 } from "lucide-react";
 import { BlurOverlay } from "./BlurOverlay";
-
-const recommendations = [
-  {
-    id: 1,
-    symbol: "NVDA",
-    name: "NVIDIA Corporation",
-    action: "STRONG BUY",
-    confidence: 92,
-    currentPrice: 512.34,
-    targetPrice: 580.00,
-    potentialGain: 13.2,
-    timeframe: "3-6 months",
-    sector: "Technology",
-    reasons: [
-      "AI chip demand at all-time high",
-      "Q4 earnings beat expectations by 23%",
-      "Strong partnership with major cloud providers",
-      "Data center revenue up 217% YoY"
-    ],
-    risks: ["High valuation concerns", "Market competition from AMD"],
-    aiScore: 9.2,
-  },
-  {
-    id: 2,
-    symbol: "TSLA",
-    name: "Tesla Inc.",
-    action: "BUY",
-    confidence: 78,
-    currentPrice: 248.56,
-    targetPrice: 285.00,
-    potentialGain: 14.6,
-    timeframe: "6-12 months",
-    sector: "Automotive",
-    reasons: [
-      "Production capacity expanding globally",
-      "New model launches in Q2 2024",
-      "Energy storage business growing 40% YoY",
-      "FSD technology improving rapidly"
-    ],
-    risks: ["CEO distraction concerns", "Increased competition"],
-    aiScore: 7.8,
-  },
-  {
-    id: 3,
-    symbol: "PLTR",
-    name: "Palantir Technologies",
-    action: "BUY",
-    confidence: 85,
-    currentPrice: 23.45,
-    targetPrice: 32.00,
-    potentialGain: 36.5,
-    timeframe: "6-12 months",
-    sector: "Software",
-    reasons: [
-      "Government contracts secured $1.2B",
-      "Commercial customer growth +55%",
-      "AI platform adoption accelerating",
-      "Operating margin improving"
-    ],
-    risks: ["Revenue concentration", "High P/E ratio"],
-    aiScore: 8.5,
-  },
-  {
-    id: 4,
-    symbol: "SQ",
-    name: "Block Inc.",
-    action: "BUY",
-    confidence: 72,
-    currentPrice: 67.89,
-    targetPrice: 85.00,
-    potentialGain: 25.2,
-    timeframe: "3-6 months",
-    sector: "Fintech",
-    reasons: [
-      "Cash App user growth +20%",
-      "Bitcoin strategy paying off",
-      "Merchant ecosystem expanding",
-      "Cost reduction initiatives working"
-    ],
-    risks: ["Regulatory scrutiny", "Economic headwinds"],
-    aiScore: 7.2,
-  },
-  {
-    id: 5,
-    symbol: "AMD",
-    name: "Advanced Micro Devices",
-    action: "HOLD",
-    confidence: 65,
-    currentPrice: 178.45,
-    targetPrice: 190.00,
-    potentialGain: 6.5,
-    timeframe: "6-12 months",
-    sector: "Technology",
-    reasons: [
-      "AI chip development on track",
-      "Data center market share gains",
-      "Server CPU demand stable"
-    ],
-    risks: ["NVIDIA competition", "Market volatility", "Valuation stretched"],
-    aiScore: 6.5,
-  },
-  {
-    id: 6,
-    symbol: "COIN",
-    name: "Coinbase Global",
-    action: "SPECULATIVE BUY",
-    confidence: 68,
-    currentPrice: 123.45,
-    targetPrice: 165.00,
-    potentialGain: 33.7,
-    timeframe: "12+ months",
-    sector: "Crypto",
-    reasons: [
-      "Crypto market recovery underway",
-      "Institutional adoption growing",
-      "New product launches successful",
-      "Regulatory clarity improving"
-    ],
-    risks: ["High volatility", "Regulatory changes", "Crypto market dependent"],
-    aiScore: 6.8,
-  },
-];
+import { fetchRecommendations, Recommendation, groupRecommendations } from "../lib/api";
 
 interface RecommendationsProps {
   isPremium: boolean;
@@ -130,14 +9,84 @@ interface RecommendationsProps {
 }
 
 export function Recommendations({ isPremium, onUnlock }: RecommendationsProps) {
-  const [filter, setFilter] = useState<"all" | "buy" | "hold">("all");
+  const [filter, setFilter] = useState<"all" | "buy" | "sell">("all");
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>("");
+
+  useEffect(() => {
+    async function loadRecommendations() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchRecommendations(50);
+        setRecommendations(data.recommendations);
+
+        // Set last updated time
+        if (data.recommendations.length > 0) {
+          const latestTime = new Date(data.recommendations[0].createdAt);
+          const now = new Date();
+          const diffMs = now.getTime() - latestTime.getTime();
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffHours = Math.floor(diffMins / 60);
+
+          if (diffMins < 60) {
+            setLastUpdated(`${diffMins} minutes ago`);
+          } else if (diffHours < 24) {
+            setLastUpdated(`${diffHours} hours ago`);
+          } else {
+            setLastUpdated(`${Math.floor(diffHours / 24)} days ago`);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch recommendations:", err);
+        setError("Failed to load recommendations");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadRecommendations();
+  }, []);
+
+  const grouped = groupRecommendations(recommendations);
 
   const filteredRecs = recommendations.filter((rec) => {
     if (filter === "all") return true;
-    if (filter === "buy") return rec.action.includes("BUY");
-    if (filter === "hold") return rec.action === "HOLD";
+    if (filter === "buy") return rec.action.toLowerCase() === "buy";
+    if (filter === "sell") return rec.action.toLowerCase() === "sell";
     return true;
   });
+
+  const buyCount = grouped.byAction.buy.length;
+  const sellCount = grouped.byAction.sell.length;
+
+  if (loading) {
+    return (
+      <div className="p-[24px] flex items-center justify-center h-[400px]">
+        <div className="text-center">
+          <Loader2 className="size-[32px] text-white animate-spin mx-auto mb-[12px]" />
+          <p className="text-gray-500 text-[13px]">Loading recommendations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-[24px] flex items-center justify-center h-[400px]">
+        <div className="text-center">
+          <p className="text-red-400 text-[14px] mb-[8px]">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-white text-[13px] underline"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-[24px]">
@@ -145,10 +94,10 @@ export function Recommendations({ isPremium, onUnlock }: RecommendationsProps) {
       <div className="flex items-center justify-between mb-[16px]">
         <div>
           <h2 className="text-white text-[20px] mb-[4px]">AI Stock Recommendations</h2>
-          <p className="text-gray-500 text-[12px]">Powered by advanced machine learning algorithms</p>
+          <p className="text-gray-500 text-[12px]">Signals from TradingView strategy alerts</p>
         </div>
         <div className="flex items-center gap-[8px]">
-          <span className="text-gray-500 text-[12px]">Last updated: 2 hours ago</span>
+          <span className="text-gray-500 text-[12px]">Last updated: {lastUpdated || "N/A"}</span>
           <Sparkles className="size-[14px] text-white" />
         </div>
       </div>
@@ -171,125 +120,121 @@ export function Recommendations({ isPremium, onUnlock }: RecommendationsProps) {
               filter === "buy" ? "bg-white text-black" : "bg-gray-950 text-gray-400 hover:text-white"
             }`}
           >
-            Buy Only ({recommendations.filter(r => r.action.includes("BUY")).length})
+            Buy ({buyCount})
           </button>
           <button
-            onClick={() => setFilter("hold")}
+            onClick={() => setFilter("sell")}
             className={`px-[10px] py-[5px] rounded-[4px] text-[12px] transition-colors ${
-              filter === "hold" ? "bg-white text-black" : "bg-gray-950 text-gray-400 hover:text-white"
+              filter === "sell" ? "bg-white text-black" : "bg-gray-950 text-gray-400 hover:text-white"
             }`}
           >
-            Hold ({recommendations.filter(r => r.action === "HOLD").length})
+            Sell ({sellCount})
           </button>
         </div>
       </div>
 
       {/* Recommendations Grid */}
-      <div className="grid grid-cols-2 gap-[16px]">
-        {filteredRecs.map((rec) => (
-          <div key={rec.id} className="bg-black rounded-[4px] p-[20px] border border-gray-900 hover:border-gray-700 transition-colors relative">
-            {!isPremium && <BlurOverlay onClick={onUnlock} message="Unlock Full Details" />}
-            
-            {/* Header */}
-            <div className="flex items-start justify-between mb-[12px]">
-              <div className="flex-1">
-                <div className="flex items-center gap-[8px] mb-[4px]">
-                  <h3 className={`text-[16px] ${isPremium ? "text-white" : "text-white blur-[6px]"}`}>{rec.symbol}</h3>
-                  <span className={`px-[6px] py-[2px] rounded-[3px] text-[10px] ${
-                    rec.action === "STRONG BUY" ? "bg-green-400 text-black" :
-                    rec.action.includes("BUY") ? "bg-green-500 text-white" :
-                    "bg-gray-700 text-white"
-                  }`}>
-                    {rec.action}
-                  </span>
+      {filteredRecs.length === 0 ? (
+        <div className="bg-black rounded-[4px] p-[40px] border border-gray-900 text-center">
+          <p className="text-gray-500 text-[14px]">No recommendations found</p>
+          <p className="text-gray-600 text-[12px] mt-[8px]">Signals will appear when TradingView alerts are triggered</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-[16px]">
+          {filteredRecs.map((rec) => (
+            <div key={rec.id} className="bg-black rounded-[4px] p-[20px] border border-gray-900 hover:border-gray-700 transition-colors relative">
+              {!isPremium && <BlurOverlay onClick={onUnlock} message="Unlock Full Details" />}
+
+              {/* Header */}
+              <div className="flex items-start justify-between mb-[12px]">
+                <div className="flex-1">
+                  <div className="flex items-center gap-[8px] mb-[4px]">
+                    <h3 className={`text-[16px] ${isPremium ? "text-white" : "text-white blur-[6px]"}`}>{rec.symbol}</h3>
+                    <span className={`px-[6px] py-[2px] rounded-[3px] text-[10px] ${
+                      rec.action.toLowerCase() === "buy" ? "bg-green-500 text-white" :
+                      rec.action.toLowerCase() === "sell" ? "bg-red-500 text-white" :
+                      "bg-gray-700 text-white"
+                    }`}>
+                      {rec.action.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className={`text-[12px] mb-[2px] ${isPremium ? "text-gray-500" : "text-gray-500 blur-[4px]"}`}>
+                    Strategy: {rec.strategy || "Unknown"}
+                  </p>
+                  <span className="text-gray-600 text-[11px]">Timeframe: {rec.timeframe || "1D"}</span>
                 </div>
-                <p className={`text-[12px] mb-[2px] ${isPremium ? "text-gray-500" : "text-gray-500 blur-[4px]"}`}>{rec.name}</p>
-                <span className="text-gray-600 text-[11px]">{rec.sector}</span>
+                <button className="text-gray-600 hover:text-white transition-colors">
+                  <Star className="size-[16px]" />
+                </button>
               </div>
-              <button className="text-gray-600 hover:text-white transition-colors">
-                <Star className="size-[16px]" />
-              </button>
-            </div>
 
-            {/* AI Score */}
-            <div className="mb-[12px] p-[10px] bg-gray-950 rounded-[4px]">
-              <div className="flex items-center justify-between mb-[6px]">
-                <span className="text-gray-500 text-[11px]">AI Confidence Score</span>
-                <span className="text-white text-[13px]">{rec.aiScore}/10</span>
-              </div>
-              <div className="flex-1 bg-gray-900 rounded-full h-[6px]">
-                <div 
-                  className={`h-[6px] rounded-full ${
-                    rec.aiScore >= 8 ? "bg-green-400" :
-                    rec.aiScore >= 7 ? "bg-green-500" :
-                    "bg-yellow-500"
-                  }`}
-                  style={{ width: `${rec.confidence}%` }}
-                />
-              </div>
-            </div>
+              {/* WR Signal Score */}
+              {rec.wrSignal !== undefined && (
+                <div className="mb-[12px] p-[10px] bg-gray-950 rounded-[4px]">
+                  <div className="flex items-center justify-between mb-[6px]">
+                    <span className="text-gray-500 text-[11px]">WR Signal Score</span>
+                    <span className="text-white text-[13px]">{rec.wrSignal.toFixed(1)}</span>
+                  </div>
+                  <div className="flex-1 bg-gray-900 rounded-full h-[6px]">
+                    <div
+                      className={`h-[6px] rounded-full ${
+                        rec.wrSignal > 0 ? "bg-green-400" : "bg-red-400"
+                      }`}
+                      style={{ width: `${Math.min(Math.abs(rec.wrSignal), 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
-            {/* Price Info */}
-            <div className="grid grid-cols-3 gap-[8px] mb-[12px]">
-              <div>
-                <div className="text-gray-500 text-[11px] mb-[2px]">Current</div>
-                <div className="text-white text-[13px]">${rec.currentPrice}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 text-[11px] mb-[2px]">Target</div>
-                <div className="text-green-400 text-[13px]">${rec.targetPrice}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 text-[11px] mb-[2px]">Upside</div>
-                <div className="flex items-center gap-[3px]">
-                  <TrendingUp className="size-[11px] text-green-400" />
-                  <span className="text-green-400 text-[13px]">{rec.potentialGain}%</span>
+              {/* Price Info */}
+              <div className="grid grid-cols-2 gap-[8px] mb-[12px]">
+                <div>
+                  <div className="text-gray-500 text-[11px] mb-[2px]">Signal Price</div>
+                  <div className="text-white text-[13px]">${rec.price?.toFixed(2) || "N/A"}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[11px] mb-[2px]">Volume</div>
+                  <div className="text-white text-[13px]">{rec.volume?.toLocaleString() || "N/A"}</div>
                 </div>
               </div>
-            </div>
 
-            {/* Timeframe */}
-            <div className="mb-[12px] text-[11px] text-gray-500">
-              Timeframe: <span className="text-white">{rec.timeframe}</span>
-            </div>
+              {/* Timestamp */}
+              <div className="mb-[12px] text-[11px] text-gray-500">
+                Signal Time: <span className="text-white">
+                  {new Date(rec.timestamp || rec.createdAt).toLocaleString()}
+                </span>
+              </div>
 
-            {/* Reasons */}
-            <div className="mb-[12px]">
-              <div className="text-gray-500 text-[11px] mb-[6px]">Key Reasons:</div>
-              <ul className="space-y-[3px]">
-                {rec.reasons.slice(0, 3).map((reason, idx) => (
-                  <li key={idx} className="text-white text-[11px] flex items-start gap-[6px]">
-                    <span className="text-green-400 mt-[2px]">✓</span>
-                    <span>{reason}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              {/* Signal Type Indicator */}
+              <div className="mb-[12px] p-[10px] bg-gray-950 rounded-[4px]">
+                <div className="flex items-center gap-[8px]">
+                  {rec.action.toLowerCase() === "buy" ? (
+                    <>
+                      <TrendingUp className="size-[16px] text-green-400" />
+                      <span className="text-green-400 text-[12px]">Entry Signal - Consider buying</span>
+                    </>
+                  ) : (
+                    <>
+                      <TrendingDown className="size-[16px] text-red-400" />
+                      <span className="text-red-400 text-[12px]">Exit Signal - Consider selling</span>
+                    </>
+                  )}
+                </div>
+              </div>
 
-            {/* Risks */}
-            <div className="mb-[12px]">
-              <div className="text-gray-500 text-[11px] mb-[6px]">Risks:</div>
-              <div className="flex flex-wrap gap-[4px]">
-                {rec.risks.map((risk, idx) => (
-                  <span key={idx} className="px-[6px] py-[2px] bg-gray-950 text-gray-400 rounded-[3px] text-[10px]">
-                    {risk}
-                  </span>
-                ))}
+              {/* Actions */}
+              <div className="flex gap-[6px]">
+                <button className="flex-1 py-[8px] bg-white text-black rounded-[4px] text-[12px] hover:bg-gray-200 transition-colors">
+                  Add to My Picks
+                </button>
+                <button className="px-[12px] py-[8px] bg-gray-950 text-white rounded-[4px] text-[12px] hover:bg-gray-900 transition-colors">
+                  Details
+                </button>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="flex gap-[6px]">
-              <button className="flex-1 py-[8px] bg-white text-black rounded-[4px] text-[12px] hover:bg-gray-200 transition-colors">
-                Add to My Picks
-              </button>
-              <button className="px-[12px] py-[8px] bg-gray-950 text-white rounded-[4px] text-[12px] hover:bg-gray-900 transition-colors">
-                Details
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

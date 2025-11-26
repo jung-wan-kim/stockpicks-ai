@@ -1,58 +1,7 @@
-import { useState } from "react";
-import { Search, TrendingUp, TrendingDown, BarChart3, Activity } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-
-const stockData = {
-  NVDA: {
-    symbol: "NVDA",
-    name: "NVIDIA Corporation",
-    price: 512.34,
-    change: 12.45,
-    changePercent: 2.49,
-    priceData: [
-      { date: "Dec 1", price: 480 },
-      { date: "Dec 8", price: 495 },
-      { date: "Dec 15", price: 505 },
-      { date: "Dec 22", price: 498 },
-      { date: "Dec 29", price: 512 },
-    ],
-    fundamentals: {
-      marketCap: "1.26T",
-      peRatio: 75.2,
-      eps: 6.81,
-      revenue: "60.9B",
-      profitMargin: "48.2%",
-      roe: "35.4%",
-    },
-    aiAnalysis: {
-      technicalScore: 8.5,
-      fundamentalScore: 9.2,
-      sentimentScore: 8.8,
-      overallScore: 8.8,
-      recommendation: "STRONG BUY",
-      confidence: 92,
-    },
-    strengths: [
-      "Dominant AI chip market position",
-      "Exceptional revenue growth trajectory",
-      "Strong profit margins and cash flow",
-      "Innovation in GPU technology"
-    ],
-    weaknesses: [
-      "High valuation multiples",
-      "Geopolitical risks in supply chain",
-      "Increasing competition from AMD"
-    ]
-  }
-};
-
-const popularStocks = [
-  { symbol: "NVDA", name: "NVIDIA", price: 512.34, change: 2.49 },
-  { symbol: "TSLA", name: "Tesla", price: 248.56, change: 3.47 },
-  { symbol: "AAPL", name: "Apple", price: 185.42, change: 1.28 },
-  { symbol: "MSFT", name: "Microsoft", price: 378.92, change: 1.22 },
-  { symbol: "GOOGL", name: "Alphabet", price: 142.34, change: -0.86 },
-];
+import { useState, useEffect } from "react";
+import { Search, TrendingUp, TrendingDown, BarChart3, Activity, Loader2 } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area } from "recharts";
+import { fetchRecommendations, fetchStockChart, Recommendation, StockChartData, getSignalsForSymbol, mergeChartWithSignals, ChartDataWithSignals } from "../lib/api";
 
 interface AnalysisProps {
   isPremium: boolean;
@@ -60,8 +9,137 @@ interface AnalysisProps {
 }
 
 export function Analysis({ isPremium, onUnlock }: AnalysisProps) {
-  const [selectedStock, setSelectedStock] = useState("NVDA");
-  const stock = stockData[selectedStock as keyof typeof stockData];
+  const [selectedStock, setSelectedStock] = useState<string>("");
+  const [stockList, setStockList] = useState<{ symbol: string; action: string; price: number; createdAt: string }[]>([]);
+  const [chartData, setChartData] = useState<ChartDataWithSignals[]>([]);
+  const [stockInfo, setStockInfo] = useState<StockChartData | null>(null);
+  const [allSignals, setAllSignals] = useState<Recommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Load stock list from recommendations
+  useEffect(() => {
+    async function loadStockList() {
+      try {
+        setLoading(true);
+        const data = await fetchRecommendations(50);
+        setAllSignals(data.allSignals);
+
+        // Get unique stocks with their latest recommendation
+        const stockMap = new Map<string, { symbol: string; action: string; price: number; createdAt: string }>();
+        data.recommendations.forEach((rec) => {
+          if (!stockMap.has(rec.symbol)) {
+            stockMap.set(rec.symbol, {
+              symbol: rec.symbol,
+              action: rec.action,
+              price: rec.price,
+              createdAt: rec.createdAt,
+            });
+          }
+        });
+
+        const stocks = Array.from(stockMap.values());
+        setStockList(stocks);
+
+        // Select first stock by default
+        if (stocks.length > 0 && !selectedStock) {
+          setSelectedStock(stocks[0].symbol);
+        }
+      } catch (err) {
+        console.error("Failed to load stocks:", err);
+        setError("Failed to load stock list");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStockList();
+  }, []);
+
+  // Load chart data when stock is selected
+  useEffect(() => {
+    if (!selectedStock) return;
+
+    async function loadChartData() {
+      try {
+        setChartLoading(true);
+        const data = await fetchStockChart(selectedStock, "3mo", "1d");
+        setStockInfo(data);
+
+        // Merge chart data with signals
+        const stockSignals = getSignalsForSymbol(allSignals, selectedStock);
+        const mergedData = mergeChartWithSignals(data.chartData, stockSignals);
+        setChartData(mergedData);
+      } catch (err) {
+        console.error("Failed to load chart data:", err);
+        setChartData([]);
+      } finally {
+        setChartLoading(false);
+      }
+    }
+    loadChartData();
+  }, [selectedStock, allSignals]);
+
+  const filteredStocks = stockList.filter((s) =>
+    s.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Get signals for selected stock
+  const stockSignals = getSignalsForSymbol(allSignals, selectedStock);
+  const buySignals = stockSignals.filter((s) => s.action.toLowerCase() === "buy");
+  const sellSignals = stockSignals.filter((s) => s.action.toLowerCase() === "sell");
+
+  // Custom dot component for signals
+  const SignalDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (!payload.signal) return null;
+
+    const isBuy = payload.signal === "buy";
+    const color = isBuy ? "#10b981" : "#ef4444";
+
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={8} fill={color} fillOpacity={0.3} />
+        <circle cx={cx} cy={cy} r={5} fill={color} stroke="white" strokeWidth={1.5} />
+        <text x={cx} y={cy + 3} textAnchor="middle" fill="white" fontSize={8} fontWeight="bold">
+          {isBuy ? "▲" : "▼"}
+        </text>
+      </g>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="p-[24px] flex items-center justify-center h-[400px]">
+        <div className="text-center">
+          <Loader2 className="size-[32px] text-white animate-spin mx-auto mb-[12px]" />
+          <p className="text-gray-500 text-[13px]">Loading stock analysis...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-[24px] flex items-center justify-center h-[400px]">
+        <div className="text-center">
+          <p className="text-red-400 text-[14px] mb-[8px]">{error}</p>
+          <button onClick={() => window.location.reload()} className="text-white text-[13px] underline">
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate price change
+  const priceChange = stockInfo?.previousClose
+    ? stockInfo.regularMarketPrice - stockInfo.previousClose
+    : 0;
+  const priceChangePercent = stockInfo?.previousClose
+    ? ((priceChange / stockInfo.previousClose) * 100).toFixed(2)
+    : "0.00";
 
   return (
     <div className="p-[24px]">
@@ -75,185 +153,186 @@ export function Analysis({ isPremium, onUnlock }: AnalysisProps) {
               <input
                 type="text"
                 placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-gray-950 text-white rounded-[4px] pl-[32px] pr-[10px] py-[7px] border border-gray-900 text-[12px]"
               />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto max-h-[500px]">
             <div className="p-[12px]">
-              <div className="text-gray-500 text-[11px] mb-[8px]">Popular Stocks</div>
-              {popularStocks.map((s) => (
-                <button
-                  key={s.symbol}
-                  onClick={() => setSelectedStock(s.symbol)}
-                  className={`w-full p-[10px] text-left rounded-[4px] mb-[4px] transition-colors ${
-                    selectedStock === s.symbol ? "bg-gray-950" : "hover:bg-gray-950"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-[2px]">
-                    <span className="text-white text-[13px]">{s.symbol}</span>
-                    <span className="text-white text-[12px]">${s.price}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500 text-[11px]">{s.name}</span>
-                    <span className={`text-[11px] ${s.change > 0 ? "text-green-400" : "text-red-400"}`}>
-                      {s.change > 0 ? "+" : ""}{s.change}%
-                    </span>
-                  </div>
-                </button>
-              ))}
+              <div className="text-gray-500 text-[11px] mb-[8px]">Stocks with Signals ({filteredStocks.length})</div>
+              {filteredStocks.length === 0 ? (
+                <div className="text-gray-600 text-[12px] text-center py-[20px]">No stocks found</div>
+              ) : (
+                filteredStocks.map((s) => (
+                  <button
+                    key={s.symbol}
+                    onClick={() => setSelectedStock(s.symbol)}
+                    className={`w-full p-[10px] text-left rounded-[4px] mb-[4px] transition-colors ${
+                      selectedStock === s.symbol ? "bg-gray-950" : "hover:bg-gray-950"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-[2px]">
+                      <span className="text-white text-[13px]">{s.symbol}</span>
+                      <span className="text-white text-[12px]">${s.price?.toFixed(2) || "N/A"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] ${s.action.toLowerCase() === "buy" ? "text-green-400" : "text-red-400"}`}>
+                        {s.action.toUpperCase()}
+                      </span>
+                      <span className="text-gray-500 text-[10px]">
+                        {new Date(s.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>
 
         {/* Analysis Panel */}
         <div className="space-y-[16px]">
-          {/* Stock Header */}
-          <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-white text-[24px] mb-[4px]">{stock.symbol}</h2>
-                <p className="text-gray-500 text-[13px] mb-[8px]">{stock.name}</p>
-                <div className="flex items-center gap-[12px]">
-                  <span className="text-white text-[32px]">${stock.price}</span>
-                  <div className="flex items-center gap-[4px]">
-                    {stock.change > 0 ? (
-                      <TrendingUp className="size-[16px] text-green-400" />
-                    ) : (
-                      <TrendingDown className="size-[16px] text-red-400" />
-                    )}
-                    <span className={`text-[16px] ${stock.change > 0 ? "text-green-400" : "text-red-400"}`}>
-                      {stock.change > 0 ? "+" : ""}{stock.change} ({stock.changePercent}%)
-                    </span>
+          {selectedStock && stockInfo ? (
+            <>
+              {/* Stock Header */}
+              <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-white text-[24px] mb-[4px]">{selectedStock}</h2>
+                    <p className="text-gray-500 text-[13px] mb-[8px]">{stockInfo.currency || "USD"}</p>
+                    <div className="flex items-center gap-[12px]">
+                      <span className="text-white text-[32px]">${stockInfo.regularMarketPrice?.toFixed(2)}</span>
+                      <div className="flex items-center gap-[4px]">
+                        {priceChange >= 0 ? (
+                          <TrendingUp className="size-[16px] text-green-400" />
+                        ) : (
+                          <TrendingDown className="size-[16px] text-red-400" />
+                        )}
+                        <span className={`text-[16px] ${priceChange >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {priceChange >= 0 ? "+" : ""}
+                          {priceChange.toFixed(2)} ({priceChangePercent}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex gap-[8px]">
+                      <span className="px-[8px] py-[4px] bg-green-500/20 text-green-400 rounded-[4px] text-[12px]">
+                        Buy: {buySignals.length}
+                      </span>
+                      <span className="px-[8px] py-[4px] bg-red-500/20 text-red-400 rounded-[4px] text-[12px]">
+                        Sell: {sellSignals.length}
+                      </span>
+                    </div>
+                    <div className="text-gray-500 text-[11px] mt-[8px]">Total signals: {stockSignals.length}</div>
                   </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className={`inline-block px-[12px] py-[6px] rounded-[4px] text-[13px] ${
-                  stock.aiAnalysis.recommendation === "STRONG BUY" ? "bg-green-400 text-black" :
-                  stock.aiAnalysis.recommendation === "BUY" ? "bg-green-500 text-white" :
-                  "bg-gray-700 text-white"
-                }`}>
-                  {stock.aiAnalysis.recommendation}
-                </div>
-                <div className="text-gray-500 text-[11px] mt-[4px]">
-                  AI Confidence: {stock.aiAnalysis.confidence}%
+
+              {/* Chart */}
+              <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
+                <h3 className="text-white text-[15px] mb-[16px]">Price Movement with Signals</h3>
+                {chartLoading ? (
+                  <div className="flex items-center justify-center h-[250px]">
+                    <Loader2 className="size-[24px] text-white animate-spin" />
+                  </div>
+                ) : chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <ComposedChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#6b7280"
+                        tickFormatter={(value) => {
+                          const date = new Date(value);
+                          return `${date.getMonth() + 1}/${date.getDate()}`;
+                        }}
+                      />
+                      <YAxis stroke="#6b7280" domain={["auto", "auto"]} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#000", border: "1px solid #1a1a1a", borderRadius: "4px" }}
+                        labelStyle={{ color: "#fff" }}
+                        formatter={(value: any, name: string) => {
+                          if (name === "close") return [`$${parseFloat(value).toFixed(2)}`, "Price"];
+                          return [value, name];
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="close"
+                        stroke="#10b981"
+                        fill="url(#colorPrice)"
+                        strokeWidth={2}
+                        dot={<SignalDot />}
+                      />
+                      <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[250px] text-gray-500 text-[13px]">
+                    No chart data available
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-[24px] mt-[12px]">
+                  <div className="flex items-center gap-[6px]">
+                    <div className="size-[12px] rounded-full bg-green-400" />
+                    <span className="text-gray-400 text-[11px]">Buy Signal</span>
+                  </div>
+                  <div className="flex items-center gap-[6px]">
+                    <div className="size-[12px] rounded-full bg-red-400" />
+                    <span className="text-gray-400 text-[11px]">Sell Signal</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Chart & AI Scores */}
-          <div className="grid grid-cols-[1fr_350px] gap-[16px]">
-            {/* Price Chart */}
-            <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
-              <h3 className="text-white text-[15px] mb-[16px]">Price Movement</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={stock.priceData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                  <XAxis dataKey="date" stroke="#6b7280" />
-                  <YAxis stroke="#6b7280" domain={[470, 520]} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#000", border: "1px solid #1a1a1a", borderRadius: "4px" }}
-                    labelStyle={{ color: "#fff" }}
-                  />
-                  <Line type="monotone" dataKey="price" stroke="#10b981" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* AI Analysis Scores */}
-            <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
-              <h3 className="text-white text-[15px] mb-[16px]">AI Analysis Scores</h3>
-              <div className="space-y-[12px]">
-                {[
-                  { label: "Technical", score: stock.aiAnalysis.technicalScore, icon: Activity },
-                  { label: "Fundamental", score: stock.aiAnalysis.fundamentalScore, icon: BarChart3 },
-                  { label: "Sentiment", score: stock.aiAnalysis.sentimentScore, icon: TrendingUp },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.label}>
-                      <div className="flex items-center justify-between mb-[6px]">
-                        <div className="flex items-center gap-[6px]">
-                          <Icon className="size-[12px] text-gray-500" />
-                          <span className="text-gray-500 text-[12px]">{item.label}</span>
+              {/* Signal History */}
+              <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
+                <h3 className="text-white text-[15px] mb-[12px]">Signal History</h3>
+                {stockSignals.length === 0 ? (
+                  <div className="text-gray-500 text-[13px]">No signals recorded for this stock</div>
+                ) : (
+                  <div className="space-y-[8px] max-h-[200px] overflow-y-auto">
+                    {stockSignals.map((signal, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-[10px] bg-gray-950 rounded-[4px]">
+                        <div className="flex items-center gap-[10px]">
+                          {signal.action.toLowerCase() === "buy" ? (
+                            <TrendingUp className="size-[14px] text-green-400" />
+                          ) : (
+                            <TrendingDown className="size-[14px] text-red-400" />
+                          )}
+                          <div>
+                            <span className={`text-[12px] ${signal.action.toLowerCase() === "buy" ? "text-green-400" : "text-red-400"}`}>
+                              {signal.action.toUpperCase()}
+                            </span>
+                            <span className="text-gray-500 text-[11px] ml-[8px]">{signal.strategy}</span>
+                          </div>
                         </div>
-                        <span className="text-white text-[13px]">{item.score}/10</span>
+                        <div className="text-right">
+                          <div className="text-white text-[12px]">${signal.price?.toFixed(2)}</div>
+                          <div className="text-gray-500 text-[10px]">
+                            {new Date(signal.timestamp || signal.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-gray-900 rounded-full h-[6px]">
-                        <div
-                          className={`h-[6px] rounded-full ${
-                            item.score >= 8 ? "bg-green-400" : item.score >= 6 ? "bg-green-500" : "bg-yellow-500"
-                          }`}
-                          style={{ width: `${item.score * 10}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-
-                <div className="pt-[12px] mt-[12px] border-t border-gray-900">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white text-[13px]">Overall Score</span>
-                    <span className="text-white text-[20px]">{stock.aiAnalysis.overallScore}/10</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Fundamentals & Analysis */}
-          <div className="grid grid-cols-2 gap-[16px]">
-            {/* Fundamentals */}
-            <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
-              <h3 className="text-white text-[15px] mb-[12px]">Key Fundamentals</h3>
-              <div className="grid grid-cols-2 gap-[12px]">
-                {Object.entries(stock.fundamentals).map(([key, value]) => (
-                  <div key={key}>
-                    <div className="text-gray-500 text-[11px] mb-[2px]">
-                      {key.replace(/([A-Z])/g, ' $1').trim()}
-                    </div>
-                    <div className="text-white text-[13px]">{value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Strengths & Weaknesses */}
-            <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
-              <h3 className="text-white text-[15px] mb-[12px]">AI Analysis</h3>
-              <div className="space-y-[12px]">
-                <div>
-                  <div className="text-green-400 text-[12px] mb-[6px]">Strengths</div>
-                  <ul className="space-y-[3px]">
-                    {stock.strengths.slice(0, 2).map((s, i) => (
-                      <li key={i} className="text-white text-[11px] flex items-start gap-[6px]">
-                        <span className="text-green-400 mt-[2px]">✓</span>
-                        <span>{s}</span>
-                      </li>
                     ))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-red-400 text-[12px] mb-[6px]">Weaknesses</div>
-                  <ul className="space-y-[3px]">
-                    {stock.weaknesses.slice(0, 2).map((w, i) => (
-                      <li key={i} className="text-white text-[11px] flex items-start gap-[6px]">
-                        <span className="text-red-400 mt-[2px]">✗</span>
-                        <span>{w}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                  </div>
+                )}
               </div>
+            </>
+          ) : (
+            <div className="bg-black rounded-[4px] p-[40px] border border-gray-900 text-center">
+              <p className="text-gray-500 text-[14px]">Select a stock to view analysis</p>
             </div>
-          </div>
-
-          {/* Action Button */}
-          <button className="w-full py-[12px] bg-white text-black rounded-[4px] text-[13px] hover:bg-gray-200 transition-colors">
-            Add {stock.symbol} to My Picks
-          </button>
+          )}
         </div>
       </div>
     </div>

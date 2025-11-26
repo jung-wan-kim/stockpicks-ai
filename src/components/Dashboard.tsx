@@ -1,18 +1,49 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Target, Award, BarChart3, Zap, Loader2 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { TrendingUp, TrendingDown, BarChart3, Zap, Loader2 } from "lucide-react";
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area, ReferenceDot } from "recharts";
 import { BlurOverlay } from "./BlurOverlay";
-import { fetchRecommendations, fetchStockChart, type Recommendation, type ChartDataPoint } from "../lib/api";
+import {
+  fetchRecommendations,
+  fetchStockChart,
+  mergeChartWithSignals,
+  getSignalsForSymbol,
+  type Recommendation,
+  type ChartDataWithSignals
+} from "../lib/api";
 
 interface DashboardProps {
   isPremium: boolean;
   onUnlock: () => void;
 }
 
+// Custom dot component for signal markers
+const SignalDot = (props: any) => {
+  const { cx, cy, payload } = props;
+  if (!payload.signal) return null;
+
+  const isBuy = payload.signal === 'buy';
+  const color = isBuy ? '#10b981' : '#ef4444';
+  const size = 8;
+
+  return (
+    <g>
+      {/* Outer circle */}
+      <circle cx={cx} cy={cy} r={size + 4} fill={color} fillOpacity={0.3} />
+      {/* Inner circle */}
+      <circle cx={cx} cy={cy} r={size} fill={color} stroke="white" strokeWidth={2} />
+      {/* Arrow */}
+      <text x={cx} y={cy + 4} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold">
+        {isBuy ? '▲' : '▼'}
+      </text>
+    </g>
+  );
+};
+
 export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [allSignals, setAllSignals] = useState<Recommendation[]>([]);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [chartData, setChartData] = useState<ChartDataWithSignals[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
@@ -23,14 +54,15 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
     async function loadRecommendations() {
       try {
         setLoading(true);
-        const data = await fetchRecommendations(10);
+        const data = await fetchRecommendations(20);
         setRecommendations(data.recommendations);
+        setAllSignals(data.allSignals);
 
         // Select first stock for chart
         if (data.recommendations.length > 0) {
           const firstSymbol = data.recommendations[0].symbol;
           setSelectedStock(firstSymbol);
-          loadChartData(firstSymbol);
+          loadChartData(firstSymbol, data.allSignals);
         }
       } catch (err) {
         setError('Failed to load recommendations');
@@ -42,12 +74,19 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
     loadRecommendations();
   }, []);
 
-  // Load chart data for selected stock
-  async function loadChartData(symbol: string) {
+  // Load chart data for selected stock with signal markers
+  async function loadChartData(symbol: string, signals?: Recommendation[]) {
     try {
       setChartLoading(true);
-      const data = await fetchStockChart(symbol, '1mo', '1d');
-      setChartData(data.chartData);
+      const data = await fetchStockChart(symbol, '3mo', '1d');
+
+      // Get signals for this symbol
+      const symbolSignals = getSignalsForSymbol(signals || allSignals, symbol);
+
+      // Merge chart data with signals
+      const mergedData = mergeChartWithSignals(data.chartData, symbolSignals);
+
+      setChartData(mergedData);
       setCurrentPrice(data.regularMarketPrice);
     } catch (err) {
       console.error(`Failed to load chart for ${symbol}:`, err);
@@ -65,14 +104,20 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
   // Format chart data for Recharts
   const formattedChartData = chartData.map(d => ({
     date: d.date.slice(5), // MM-DD format
+    fullDate: d.date,
     close: parseFloat(d.close),
-    volume: d.volume
+    volume: d.volume,
+    signal: d.signal,
+    signalPrice: d.signalPrice
   }));
 
   // Calculate price change
   const priceChange = formattedChartData.length >= 2
     ? ((formattedChartData[formattedChartData.length - 1].close - formattedChartData[0].close) / formattedChartData[0].close * 100)
     : 0;
+
+  // Get signal markers for reference dots
+  const signalMarkers = formattedChartData.filter(d => d.signal);
 
   return (
     <div className="p-[24px] space-y-[16px]">
@@ -93,7 +138,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
             <TrendingUp className="size-[14px] text-green-500" />
           </div>
           <div className="text-green-400 text-[28px]">{buySignals}</div>
-          <div className="text-gray-500 text-[12px] mt-[6px]">Active buy recommendations</div>
+          <div className="text-gray-500 text-[12px] mt-[6px]">Entry positions</div>
         </div>
 
         <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
@@ -102,7 +147,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
             <TrendingDown className="size-[14px] text-red-500" />
           </div>
           <div className="text-red-400 text-[28px]">{sellSignals}</div>
-          <div className="text-gray-500 text-[12px] mt-[6px]">Active sell recommendations</div>
+          <div className="text-gray-500 text-[12px] mt-[6px]">Exit positions</div>
         </div>
 
         <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
@@ -113,7 +158,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
           <div className="text-white text-[28px]">
             {recommendations[0]?.symbol || '-'}
           </div>
-          <div className="text-gray-500 text-[12px] mt-[6px]">
+          <div className={`text-[12px] mt-[6px] ${recommendations[0]?.action === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
             {recommendations[0]?.action?.toUpperCase() || 'No signals'}
           </div>
         </div>
@@ -121,7 +166,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
 
       {/* Chart & Recommendations */}
       <div className="grid grid-cols-[1fr_400px] gap-[16px]">
-        {/* Stock Chart */}
+        {/* Stock Chart with Signal Markers */}
         <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
           <div className="flex items-center justify-between mb-[20px]">
             <div>
@@ -130,7 +175,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                 {currentPrice && <span className="text-gray-500 ml-2">${currentPrice.toFixed(2)}</span>}
               </h3>
               <p className="text-gray-500 text-[12px]">
-                Daily price chart (1 month)
+                Daily chart with entry/exit signals
                 {priceChange !== 0 && (
                   <span className={`ml-2 ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
@@ -138,30 +183,43 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                 )}
               </p>
             </div>
-            {/* Stock selector */}
-            <select
-              value={selectedStock || ''}
-              onChange={(e) => {
-                setSelectedStock(e.target.value);
-                loadChartData(e.target.value);
-              }}
-              className="bg-gray-950 text-white text-[12px] px-[10px] py-[6px] rounded-[4px] border border-gray-800"
-            >
-              {recommendations.map((rec) => (
-                <option key={rec.id} value={rec.symbol}>
-                  {rec.symbol} - {rec.action.toUpperCase()}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-[12px]">
+              {/* Legend */}
+              <div className="flex items-center gap-[8px] text-[11px]">
+                <div className="flex items-center gap-[4px]">
+                  <div className="size-[10px] rounded-full bg-green-500" />
+                  <span className="text-gray-400">Buy</span>
+                </div>
+                <div className="flex items-center gap-[4px]">
+                  <div className="size-[10px] rounded-full bg-red-500" />
+                  <span className="text-gray-400">Sell</span>
+                </div>
+              </div>
+              {/* Stock selector */}
+              <select
+                value={selectedStock || ''}
+                onChange={(e) => {
+                  setSelectedStock(e.target.value);
+                  loadChartData(e.target.value);
+                }}
+                className="bg-gray-950 text-white text-[12px] px-[10px] py-[6px] rounded-[4px] border border-gray-800"
+              >
+                {recommendations.map((rec) => (
+                  <option key={rec.id} value={rec.symbol}>
+                    {rec.symbol} - {rec.action.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {chartLoading ? (
-            <div className="flex items-center justify-center h-[280px]">
+            <div className="flex items-center justify-center h-[300px]">
               <Loader2 className="size-[24px] text-gray-500 animate-spin" />
             </div>
           ) : formattedChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={formattedChartData}>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={formattedChartData}>
                 <defs>
                   <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={priceChange >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0.3}/>
@@ -182,9 +240,19 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                   tickFormatter={(value) => `$${value}`}
                 />
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#000", border: "1px solid #1a1a1a", borderRadius: "4px" }}
+                  contentStyle={{ backgroundColor: "#000", border: "1px solid #333", borderRadius: "4px" }}
                   labelStyle={{ color: "#fff" }}
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, "Price"]}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'close') return [`$${value.toFixed(2)}`, 'Price'];
+                    return [value, name];
+                  }}
+                  labelFormatter={(label, payload) => {
+                    const data = payload?.[0]?.payload;
+                    if (data?.signal) {
+                      return `${data.fullDate} - ${data.signal.toUpperCase()} Signal @ $${data.signalPrice?.toFixed(2) || data.close.toFixed(2)}`;
+                    }
+                    return data?.fullDate || label;
+                  }}
                 />
                 <Area
                   type="monotone"
@@ -192,17 +260,29 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                   stroke={priceChange >= 0 ? "#10b981" : "#ef4444"}
                   strokeWidth={2}
                   fill="url(#colorPrice)"
+                  dot={<SignalDot />}
                 />
-              </AreaChart>
+                {/* Signal markers as reference dots */}
+                {signalMarkers.map((marker, idx) => (
+                  <ReferenceDot
+                    key={idx}
+                    x={marker.date}
+                    y={marker.close}
+                    r={0}
+                    fill="none"
+                    stroke="none"
+                  />
+                ))}
+              </ComposedChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[280px] text-gray-500">
+            <div className="flex items-center justify-center h-[300px] text-gray-500">
               No chart data available
             </div>
           )}
         </div>
 
-        {/* Today's Top Recommendations */}
+        {/* Latest Signals */}
         <div className="bg-black rounded-[4px] p-[20px] border border-gray-900 relative">
           {!isPremium && <BlurOverlay onClick={onUnlock} message="Unlock AI Recommendations" />}
 
@@ -218,12 +298,12 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
           ) : error ? (
             <div className="text-red-400 text-[12px]">{error}</div>
           ) : (
-            <div className="space-y-[10px] max-h-[400px] overflow-y-auto">
-              {recommendations.slice(0, 5).map((rec) => (
+            <div className="space-y-[10px] max-h-[420px] overflow-y-auto">
+              {recommendations.slice(0, 6).map((rec) => (
                 <div
                   key={rec.id}
                   className={`bg-gray-950 rounded-[4px] p-[12px] cursor-pointer transition-colors ${
-                    selectedStock === rec.symbol ? 'border border-white' : 'hover:border hover:border-gray-700'
+                    selectedStock === rec.symbol ? 'border border-white' : 'border border-transparent hover:border-gray-700'
                   }`}
                   onClick={() => {
                     setSelectedStock(rec.symbol);
@@ -239,12 +319,12 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                         {rec.strategy}
                       </div>
                     </div>
-                    <div className={`px-[6px] py-[2px] rounded-[3px] text-[10px] ${
+                    <div className={`px-[6px] py-[2px] rounded-[3px] text-[10px] flex items-center gap-[4px] ${
                       rec.action === "buy" ? "bg-green-400 text-black" :
                       rec.action === "sell" ? "bg-red-400 text-white" :
                       "bg-gray-700 text-white"
                     }`}>
-                      {rec.action.toUpperCase()}
+                      {rec.action === "buy" ? "▲" : "▼"} {rec.action.toUpperCase()}
                     </div>
                   </div>
 
@@ -273,7 +353,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
         </div>
       </div>
 
-      {/* Recent Signals Table */}
+      {/* All Trading Signals Table */}
       <div className="bg-black rounded-[4px] p-[20px] border border-gray-900">
         <h3 className="text-white text-[15px] mb-[12px]">All Trading Signals</h3>
         <div className="overflow-x-auto">
@@ -285,11 +365,12 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                 <th className="text-right text-gray-500 pb-[10px] text-[12px]">Price</th>
                 <th className="text-right text-gray-500 pb-[10px] text-[12px]">Volume</th>
                 <th className="text-right text-gray-500 pb-[10px] text-[12px]">Strategy</th>
+                <th className="text-right text-gray-500 pb-[10px] text-[12px]">Timeframe</th>
                 <th className="text-right text-gray-500 pb-[10px] text-[12px]">Time</th>
               </tr>
             </thead>
             <tbody>
-              {recommendations.map((rec) => (
+              {allSignals.slice(0, 10).map((rec) => (
                 <tr
                   key={rec.id}
                   className="border-b border-gray-900 hover:bg-gray-950 cursor-pointer"
@@ -305,7 +386,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                       rec.action === "sell" ? "bg-red-400 text-white" :
                       "bg-gray-700 text-white"
                     }`}>
-                      {rec.action.toUpperCase()}
+                      {rec.action === "buy" ? "▲" : "▼"} {rec.action.toUpperCase()}
                     </span>
                   </td>
                   <td className="py-[12px] text-right text-white text-[12px]">
@@ -316,6 +397,9 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                   </td>
                   <td className="py-[12px] text-right text-gray-400 text-[12px]">
                     {rec.strategy}
+                  </td>
+                  <td className="py-[12px] text-right text-gray-400 text-[12px]">
+                    {rec.timeframe || '1D'}
                   </td>
                   <td className="py-[12px] text-right text-gray-500 text-[11px]">
                     {new Date(rec.createdAt).toLocaleDateString()}
