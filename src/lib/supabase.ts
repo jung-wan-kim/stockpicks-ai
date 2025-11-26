@@ -1,16 +1,26 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
+const isConfigured = !!(supabaseUrl && supabaseAnonKey)
+
+if (!isConfigured) {
   console.warn('Supabase credentials not found. Auth features will be disabled.')
 }
 
-export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
-)
+// Create a mock client if not configured to prevent runtime errors
+export const supabase: SupabaseClient = isConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : {
+      auth: {
+        signInWithOAuth: async () => ({ data: null, error: new Error('Supabase not configured') }),
+        signOut: async () => ({ error: null }),
+        getUser: async () => ({ data: { user: null }, error: null }),
+        getSession: async () => ({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+      }
+    } as unknown as SupabaseClient
 
 export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
