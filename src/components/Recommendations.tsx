@@ -228,7 +228,7 @@ Time: ${new Date(rec.timestamp || rec.createdAt).toLocaleString()}
               </div>
 
               {/* WR Signal Score */}
-              {rec.wrSignal !== undefined && (
+              {rec.wrSignal != null && (
                 <div className="mb-[12px] p-[10px] bg-gray-950 rounded-[4px]">
                   <div className="flex items-center justify-between mb-[6px]">
                     <span className="text-gray-500 text-[11px]">WR Signal Score</span>
