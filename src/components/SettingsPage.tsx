@@ -10,6 +10,82 @@ interface SettingsPageProps {
 
 export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState("profile");
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    bio: '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  // Save profile changes
+  const handleSaveProfile = () => {
+    const profileData = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phone: formData.phone,
+      bio: formData.bio,
+      updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem('stockpicks_profile', JSON.stringify(profileData));
+    alert('Profile updated successfully!');
+  };
+
+  // Update password
+  const handleUpdatePassword = () => {
+    if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
+      alert('Please fill in all password fields');
+      return;
+    }
+    if (formData.newPassword !== formData.confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+    if (formData.newPassword.length < 8) {
+      alert('Password must be at least 8 characters');
+      return;
+    }
+    // Since using Google OAuth, password change might not be available
+    alert('Password management is handled by your Google account.\n\nPlease visit your Google Account settings to change your password.');
+  };
+
+  // Disable 2FA
+  const handleDisable2FA = () => {
+    alert('Two-Factor Authentication is currently not supported.\n\nThis feature will be available in a future update.');
+  };
+
+  // Revoke session
+  const handleRevokeSession = (device: string) => {
+    if (confirm(`Revoke session for ${device}?`)) {
+      alert('Session management is coming soon.\n\nThis feature will be available in a future update.');
+    }
+  };
+
+  // Manage subscription
+  const handleManageSubscription = () => {
+    alert('Subscription management coming soon.\n\nYou will be able to upgrade, downgrade, or cancel your subscription here.');
+  };
+
+  // Update payment method
+  const handleUpdatePayment = () => {
+    alert('Payment method update coming soon.\n\nThis will redirect you to Lemon Squeezy customer portal.');
+  };
+
+  // Save preferences
+  const handleSavePreferences = () => {
+    const preferences = {
+      orderType: (document.querySelector('[name="orderType"]') as HTMLSelectElement)?.value,
+      defaultQuantity: (document.querySelector('[name="defaultQuantity"]') as HTMLInputElement)?.value,
+      timeZone: (document.querySelector('[name="timeZone"]') as HTMLSelectElement)?.value,
+      currency: (document.querySelector('[name="currency"]') as HTMLSelectElement)?.value,
+      confirmTrades: (document.querySelector('[name="confirmTrades"]') as HTMLInputElement)?.checked,
+      updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem('stockpicks_preferences', JSON.stringify(preferences));
+    alert('Preferences saved successfully!');
+  };
 
   // Extract user info from Google OAuth
   const userMetadata = user?.user_metadata || {};
@@ -103,6 +179,7 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                       <input
                         type="text"
                         defaultValue={firstName}
+                        onChange={(e) => setFormData({...formData, firstName: e.target.value})}
                         className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                       />
                     </div>
@@ -111,6 +188,7 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                       <input
                         type="text"
                         defaultValue={lastName}
+                        onChange={(e) => setFormData({...formData, lastName: e.target.value})}
                         className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                       />
                     </div>
@@ -132,6 +210,7 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                     <input
                       type="tel"
                       placeholder="Add phone number"
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
                       className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                     />
                   </div>
@@ -141,11 +220,15 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                     <textarea
                       placeholder="Tell us about yourself..."
                       rows={4}
+                      onChange={(e) => setFormData({...formData, bio: e.target.value})}
                       className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                     />
                   </div>
 
-                  <button className="flex items-center gap-[8px] px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors">
+                  <button
+                    onClick={handleSaveProfile}
+                    className="flex items-center gap-[8px] px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors"
+                  >
                     <Save className="size-[16px]" />
                     Save Changes
                   </button>
@@ -195,6 +278,7 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                       <label className="text-gray-400 text-[14px] block mb-[8px]">Current Password</label>
                       <input
                         type="password"
+                        onChange={(e) => setFormData({...formData, currentPassword: e.target.value})}
                         className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                       />
                     </div>
@@ -202,6 +286,7 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                       <label className="text-gray-400 text-[14px] block mb-[8px]">New Password</label>
                       <input
                         type="password"
+                        onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
                         className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                       />
                     </div>
@@ -209,10 +294,14 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                       <label className="text-gray-400 text-[14px] block mb-[8px]">Confirm New Password</label>
                       <input
                         type="password"
+                        onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                         className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                       />
                     </div>
-                    <button className="px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors">
+                    <button
+                      onClick={handleUpdatePassword}
+                      className="px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors"
+                    >
                       Update Password
                     </button>
                   </div>
@@ -226,7 +315,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                         <div className="text-white mb-[4px]">2FA Status</div>
                         <div className="text-green-400 text-[12px]">Enabled</div>
                       </div>
-                      <button className="px-[16px] py-[8px] bg-red-600 text-white rounded-[4px] hover:bg-red-700 transition-colors text-[14px]">
+                      <button
+                        onClick={handleDisable2FA}
+                        className="px-[16px] py-[8px] bg-red-600 text-white rounded-[4px] hover:bg-red-700 transition-colors text-[14px]"
+                      >
                         Disable
                       </button>
                     </div>
@@ -247,7 +339,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                             {session.location} • {session.date}
                           </div>
                         </div>
-                        <button className="px-[12px] py-[6px] bg-gray-600 text-white rounded-[4px] hover:bg-gray-500 transition-colors text-[14px]">
+                        <button
+                          onClick={() => handleRevokeSession(session.device)}
+                          className="px-[12px] py-[6px] bg-gray-600 text-white rounded-[4px] hover:bg-gray-500 transition-colors text-[14px]"
+                        >
                           Revoke
                         </button>
                       </div>
@@ -276,7 +371,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                   <p className="text-gray-300 text-[14px] mb-[16px]">
                     Next billing date: February 15, 2024
                   </p>
-                  <button className="px-[16px] py-[8px] bg-gray-700 text-white rounded-[4px] hover:bg-gray-600 transition-colors text-[14px]">
+                  <button
+                    onClick={handleManageSubscription}
+                    className="px-[16px] py-[8px] bg-gray-700 text-white rounded-[4px] hover:bg-gray-600 transition-colors text-[14px]"
+                  >
                     Manage Subscription
                   </button>
                 </div>
@@ -293,7 +391,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                         <div className="text-gray-400 text-[12px]">Expires 12/25</div>
                       </div>
                     </div>
-                    <button className="px-[12px] py-[6px] bg-gray-600 text-white rounded-[4px] hover:bg-gray-500 transition-colors text-[14px]">
+                    <button
+                      onClick={handleUpdatePayment}
+                      className="px-[12px] py-[6px] bg-gray-600 text-white rounded-[4px] hover:bg-gray-500 transition-colors text-[14px]"
+                    >
                       Update
                     </button>
                   </div>
@@ -333,7 +434,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
               <div className="space-y-[24px]">
                 <div>
                   <label className="text-gray-400 text-[14px] block mb-[8px]">Default Order Type</label>
-                  <select className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600">
+                  <select
+                    name="orderType"
+                    className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
+                  >
                     <option>Market Order</option>
                     <option>Limit Order</option>
                     <option>Stop Order</option>
@@ -345,6 +449,7 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                   <label className="text-gray-400 text-[14px] block mb-[8px]">Default Quantity</label>
                   <input
                     type="number"
+                    name="defaultQuantity"
                     defaultValue="10"
                     className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
                   />
@@ -352,7 +457,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
 
                 <div>
                   <label className="text-gray-400 text-[14px] block mb-[8px]">Time Zone</label>
-                  <select className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600">
+                  <select
+                    name="timeZone"
+                    className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
+                  >
                     <option>Eastern Time (ET)</option>
                     <option>Central Time (CT)</option>
                     <option>Mountain Time (MT)</option>
@@ -362,7 +470,10 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
 
                 <div>
                   <label className="text-gray-400 text-[14px] block mb-[8px]">Currency</label>
-                  <select className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600">
+                  <select
+                    name="currency"
+                    className="w-full bg-gray-700 text-white rounded-[4px] px-[12px] py-[10px] border border-gray-600"
+                  >
                     <option>USD - US Dollar</option>
                     <option>EUR - Euro</option>
                     <option>GBP - British Pound</option>
@@ -376,13 +487,16 @@ export function SettingsPage({ user, isAuthenticated, onLogin }: SettingsPagePro
                     <div className="text-gray-400 text-[12px]">Require confirmation before executing trades</div>
                   </div>
                   <label className="relative inline-block w-[48px] h-[24px]">
-                    <input type="checkbox" defaultChecked className="sr-only peer" />
+                    <input type="checkbox" name="confirmTrades" defaultChecked className="sr-only peer" />
                     <div className="w-full h-full bg-gray-600 rounded-full peer-checked:bg-blue-600 transition-colors cursor-pointer"></div>
                     <div className="absolute left-[2px] top-[2px] size-[20px] bg-white rounded-full transition-transform peer-checked:translate-x-[24px]"></div>
                   </label>
                 </div>
 
-                <button className="flex items-center gap-[8px] px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors">
+                <button
+                  onClick={handleSavePreferences}
+                  className="flex items-center gap-[8px] px-[16px] py-[10px] bg-blue-600 text-white rounded-[4px] hover:bg-blue-700 transition-colors"
+                >
                   <Save className="size-[16px]" />
                   Save Preferences
                 </button>

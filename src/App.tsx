@@ -17,6 +17,8 @@ type PageType = "dashboard" | "recommendations" | "analysis" | "mypicks" | "perf
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("dashboard");
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const { user, isAuthenticated, loading } = useAuth();
   const { isPremium, subscription, refetch: refetchSubscription } = useSubscription();
 
@@ -47,7 +49,7 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case "dashboard":
-        return <Dashboard isPremium={isPremium} onUnlock={handleUnlock} />;
+        return <Dashboard isPremium={isPremium} onUnlock={handleUnlock} onNavigate={setCurrentPage} />;
       case "recommendations":
         return <Recommendations isPremium={isPremium} onUnlock={handleUnlock} />;
       case "analysis":
@@ -61,7 +63,7 @@ function App() {
       case "settings":
         return <SettingsPage user={user} isAuthenticated={isAuthenticated} onLogin={handleUnlock} />;
       default:
-        return <Dashboard isPremium={isPremium} onUnlock={handleUnlock} />;
+        return <Dashboard isPremium={isPremium} onUnlock={handleUnlock} onNavigate={setCurrentPage} />;
     }
   };
 
@@ -234,13 +236,46 @@ function App() {
                     </div>
                   </div>
                   <div className="content-stretch flex items-center relative shrink-0">
-                    <button className="content-stretch flex flex-col items-center justify-center relative shrink-0 text-gray-500 hover:text-white transition-colors">
-                      <Bell className="size-[18px]" />
-                    </button>
-                    <div className="box-border content-stretch flex flex-col items-start pl-[16px] pr-0 py-0 relative shrink-0">
-                      <button className="content-stretch flex flex-col items-center justify-center relative shrink-0 text-gray-500 hover:text-white transition-colors">
-                        <Search className="size-[18px]" />
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowNotifications(!showNotifications)}
+                        className="content-stretch flex flex-col items-center justify-center relative shrink-0 text-gray-500 hover:text-white transition-colors"
+                      >
+                        <Bell className="size-[18px]" />
                       </button>
+                      {showNotifications && (
+                        <div className="absolute right-0 top-[32px] w-[320px] bg-gray-900 border border-gray-800 rounded-[8px] shadow-lg p-[16px] z-50">
+                          <h3 className="text-white text-[14px] mb-[12px] font-semibold">Notifications</h3>
+                          <div className="space-y-[12px]">
+                            <div className="text-gray-400 text-[12px] text-center py-[20px]">
+                              No new notifications
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="box-border content-stretch flex flex-col items-start pl-[16px] pr-0 py-0 relative shrink-0">
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowSearch(!showSearch)}
+                          className="content-stretch flex flex-col items-center justify-center relative shrink-0 text-gray-500 hover:text-white transition-colors"
+                        >
+                          <Search className="size-[18px]" />
+                        </button>
+                        {showSearch && (
+                          <div className="absolute right-0 top-[32px] w-[400px] bg-gray-900 border border-gray-800 rounded-[8px] shadow-lg p-[16px] z-50">
+                            <input
+                              type="text"
+                              placeholder="Search stocks..."
+                              className="w-full bg-gray-800 text-white rounded-[4px] px-[12px] py-[8px] border border-gray-700 focus:outline-none focus:border-blue-500"
+                              autoFocus
+                            />
+                            <div className="mt-[12px] text-gray-400 text-[12px]">
+                              Coming soon: Search functionality
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -14,6 +14,7 @@ import {
 interface DashboardProps {
   isPremium: boolean;
   onUnlock: () => void;
+  onNavigate?: (page: string) => void;
 }
 
 // Custom dot component for signal markers
@@ -39,7 +40,7 @@ const SignalDot = (props: any) => {
   );
 };
 
-export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
+export function Dashboard({ isPremium, onUnlock, onNavigate }: DashboardProps) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [allSignals, setAllSignals] = useState<Recommendation[]>([]);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
@@ -363,7 +364,10 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
             </div>
           )}
 
-          <button className="w-full mt-[12px] py-[8px] bg-white text-black rounded-[4px] text-[12px] hover:bg-gray-200 transition-colors">
+          <button
+            onClick={() => onNavigate && onNavigate('recommendations')}
+            className="w-full mt-[12px] py-[8px] bg-white text-black rounded-[4px] text-[12px] hover:bg-gray-200 transition-colors"
+          >
             View All Signals
           </button>
         </div>

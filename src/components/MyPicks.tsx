@@ -23,6 +23,30 @@ export function MyPicks({ isPremium, onUnlock }: MyPicksProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Delete a pick
+  const deletePick = (symbol: string, entryDate: string) => {
+    if (confirm(`Are you sure you want to remove ${symbol} from your picks?`)) {
+      const updatedPicks = picks.filter(
+        pick => !(pick.symbol === symbol && pick.entryDate === entryDate)
+      );
+      setPicks(updatedPicks);
+
+      // Also update localStorage if using it for persistence
+      const storedPicks = JSON.parse(localStorage.getItem('stockpicks_mypicks') || '[]');
+      const filtered = storedPicks.filter((p: any) =>
+        !(p.symbol === symbol && p.entryDate === entryDate)
+      );
+      localStorage.setItem('stockpicks_mypicks', JSON.stringify(filtered));
+
+      alert(`${symbol} removed from My Picks`);
+    }
+  };
+
+  // Add manual pick
+  const handleAddPick = () => {
+    alert('Coming Soon: Manual pick entry\n\nYou can add picks automatically from the Recommendations page by clicking "Add to My Picks" button.');
+  };
+
   useEffect(() => {
     async function loadPicks() {
       try {
@@ -158,7 +182,10 @@ export function MyPicks({ isPremium, onUnlock }: MyPicksProps) {
           <h2 className="text-white text-[20px] mb-[4px]">My Picks</h2>
           <p className="text-gray-500 text-[12px]">Track positions from TradingView signals</p>
         </div>
-        <button className="flex items-center gap-[6px] px-[12px] py-[8px] bg-white text-black rounded-[4px] hover:bg-gray-200 transition-colors text-[13px]">
+        <button
+          onClick={handleAddPick}
+          className="flex items-center gap-[6px] px-[12px] py-[8px] bg-white text-black rounded-[4px] hover:bg-gray-200 transition-colors text-[13px]"
+        >
           <Plus className="size-[14px]" />
           Add Pick
         </button>
@@ -268,7 +295,11 @@ export function MyPicks({ isPremium, onUnlock }: MyPicksProps) {
                       </span>
                     </td>
                     <td className="py-[12px] text-right">
-                      <button className="text-gray-500 hover:text-white transition-colors">
+                      <button
+                        onClick={() => deletePick(pick.symbol, pick.entryDate)}
+                        className="text-gray-500 hover:text-red-400 transition-colors"
+                        title="Remove from picks"
+                      >
                         <X className="size-[14px]" />
                       </button>
                     </td>

@@ -14,6 +14,60 @@ export function Recommendations({ isPremium, onUnlock }: RecommendationsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+
+  // Load favorites from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('stockpicks_favorites');
+    if (saved) {
+      setFavorites(new Set(JSON.parse(saved)));
+    }
+  }, []);
+
+  // Toggle favorite
+  const toggleFavorite = (symbol: string) => {
+    const newFavorites = new Set(favorites);
+    if (newFavorites.has(symbol)) {
+      newFavorites.delete(symbol);
+    } else {
+      newFavorites.add(symbol);
+    }
+    setFavorites(newFavorites);
+    localStorage.setItem('stockpicks_favorites', JSON.stringify(Array.from(newFavorites)));
+  };
+
+  // Add to my picks
+  const addToPicks = (rec: Recommendation) => {
+    const picks = JSON.parse(localStorage.getItem('stockpicks_mypicks') || '[]');
+    const newPick = {
+      id: rec.id,
+      symbol: rec.symbol,
+      action: rec.action,
+      entryPrice: rec.price,
+      entryDate: new Date().toISOString(),
+      strategy: rec.strategy,
+      timeframe: rec.timeframe,
+      addedAt: new Date().toISOString()
+    };
+    picks.push(newPick);
+    localStorage.setItem('stockpicks_mypicks', JSON.stringify(picks));
+    alert(`${rec.symbol} added to My Picks!`);
+  };
+
+  // Show details
+  const showDetails = (rec: Recommendation) => {
+    const details = `
+Symbol: ${rec.symbol}
+Action: ${rec.action.toUpperCase()}
+Strategy: ${rec.strategy || 'Unknown'}
+Timeframe: ${rec.timeframe || '1D'}
+Price: $${rec.price?.toFixed(2) || 'N/A'}
+Volume: ${rec.volume?.toLocaleString() || 'N/A'}
+WR Signal: ${rec.wrSignal?.toFixed(1) || 'N/A'}
+Time: ${new Date(rec.timestamp || rec.createdAt).toLocaleString()}
+    `.trim();
+    alert(details);
+  };
 
   useEffect(() => {
     async function loadRecommendations() {
@@ -163,8 +217,13 @@ export function Recommendations({ isPremium, onUnlock }: RecommendationsProps) {
                   </p>
                   <span className="text-gray-600 text-[11px]">Timeframe: {rec.timeframe || "1D"}</span>
                 </div>
-                <button className="text-gray-600 hover:text-white transition-colors">
-                  <Star className="size-[16px]" />
+                <button
+                  onClick={() => toggleFavorite(rec.symbol)}
+                  className={`transition-colors ${
+                    favorites.has(rec.symbol) ? 'text-yellow-400' : 'text-gray-600 hover:text-white'
+                  }`}
+                >
+                  <Star className={`size-[16px] ${favorites.has(rec.symbol) ? 'fill-yellow-400' : ''}`} />
                 </button>
               </div>
 
@@ -224,10 +283,16 @@ export function Recommendations({ isPremium, onUnlock }: RecommendationsProps) {
 
               {/* Actions */}
               <div className="flex gap-[6px]">
-                <button className="flex-1 py-[8px] bg-white text-black rounded-[4px] text-[12px] hover:bg-gray-200 transition-colors">
+                <button
+                  onClick={() => addToPicks(rec)}
+                  className="flex-1 py-[8px] bg-white text-black rounded-[4px] text-[12px] hover:bg-gray-200 transition-colors"
+                >
                   Add to My Picks
                 </button>
-                <button className="px-[12px] py-[8px] bg-gray-950 text-white rounded-[4px] text-[12px] hover:bg-gray-900 transition-colors">
+                <button
+                  onClick={() => showDetails(rec)}
+                  className="px-[12px] py-[8px] bg-gray-950 text-white rounded-[4px] text-[12px] hover:bg-gray-900 transition-colors"
+                >
                   Details
                 </button>
               </div>
