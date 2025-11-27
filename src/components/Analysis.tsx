@@ -70,6 +70,21 @@ export function Analysis({ isPremium, onUnlock }: AnalysisProps) {
         // Merge chart data with signals
         const stockSignals = getSignalsForSymbol(allSignals, selectedStock);
         const mergedData = mergeChartWithSignals(data.chartData, stockSignals);
+
+        // Add 5 future days with null close values for chart extension
+        if (mergedData.length > 0) {
+          const lastDate = new Date(mergedData[mergedData.length - 1].date);
+          for (let i = 1; i <= 5; i++) {
+            const futureDate = new Date(lastDate);
+            futureDate.setDate(futureDate.getDate() + i);
+            mergedData.push({
+              date: futureDate.toISOString().split('T')[0],
+              close: null as any,
+              signal: null,
+            });
+          }
+        }
+
         setChartData(mergedData);
       } catch (err) {
         console.error("Failed to load chart data:", err);
@@ -266,6 +281,7 @@ export function Analysis({ isPremium, onUnlock }: AnalysisProps) {
                         fill="url(#colorPrice)"
                         strokeWidth={2}
                         dot={<SignalDot />}
+                        connectNulls={false}
                       />
                       <defs>
                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">

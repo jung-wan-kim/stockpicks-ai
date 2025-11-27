@@ -86,6 +86,20 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
       // Merge chart data with signals
       const mergedData = mergeChartWithSignals(data.chartData, symbolSignals);
 
+      // Add 5 future days with null close values for chart extension
+      if (mergedData.length > 0) {
+        const lastDate = new Date(mergedData[mergedData.length - 1].date);
+        for (let i = 1; i <= 5; i++) {
+          const futureDate = new Date(lastDate);
+          futureDate.setDate(futureDate.getDate() + i);
+          mergedData.push({
+            date: futureDate.toISOString().split('T')[0],
+            close: null as any,
+            signal: null,
+          });
+        }
+      }
+
       setChartData(mergedData);
       setCurrentPrice(data.regularMarketPrice);
     } catch (err) {
@@ -111,9 +125,10 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
     signalPrice: d.signalPrice
   }));
 
-  // Calculate price change
-  const priceChange = formattedChartData.length >= 2
-    ? ((formattedChartData[formattedChartData.length - 1].close - formattedChartData[0].close) / formattedChartData[0].close * 100)
+  // Calculate price change (filter out null values for future dates)
+  const validChartData = formattedChartData.filter(d => d.close != null);
+  const priceChange = validChartData.length >= 2
+    ? ((validChartData[validChartData.length - 1].close - validChartData[0].close) / validChartData[0].close * 100)
     : 0;
 
   // Get signal markers for reference dots
@@ -261,6 +276,7 @@ export function Dashboard({ isPremium, onUnlock }: DashboardProps) {
                   strokeWidth={2}
                   fill="url(#colorPrice)"
                   dot={<SignalDot />}
+                  connectNulls={false}
                 />
                 {/* Signal markers as reference dots */}
                 {signalMarkers.map((marker, idx) => (
