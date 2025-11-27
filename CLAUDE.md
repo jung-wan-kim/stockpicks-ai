@@ -64,3 +64,90 @@ type PageType = "dashboard" | "recommendations" | "analysis" | "mypicks" | "perf
 
 ### Path Alias
 `@` → `./src` (vite.config.ts에 설정됨)
+
+## 테스트 전략 (필수)
+
+### 작업 시 테스트 체크리스트
+
+**모든 UI 변경 작업 후 필수 실행**:
+
+```bash
+# E2E 테스트 실행 (필수)
+npm run test:e2e
+
+# UI 모드로 디버깅 (선택)
+npm run test:e2e:ui
+
+# 특정 테스트만 실행
+npx playwright test navigation.spec.ts
+```
+
+**테스트가 반드시 필요한 경우**:
+- ✅ 버튼 수정 (클릭 핸들러, 스타일, 텍스트)
+- ✅ 페이지 네비게이션 변경
+- ✅ 프리미엄 기능 수정
+- ✅ 모달/다이얼로그 변경
+- ✅ 컴포넌트 로직 수정 (null 체크, 조건부 렌더링)
+- ✅ 이벤트 핸들러 추가/수정
+
+**커밋 전 필수 확인**:
+1. E2E 테스트 통과 (`npm run test:e2e`)
+2. 개발 서버 정상 실행 (`npm run dev`)
+3. 빌드 에러 없음 (`npm run build`)
+
+### 테스트 파일 구조
+
+```
+tests/
+└── e2e/
+    ├── navigation.spec.ts      # 페이지 네비게이션
+    ├── buttons.spec.ts         # 버튼 인터랙션
+    ├── premium.spec.ts         # 프리미엄 기능
+    ├── modal.spec.ts           # 모달 기능
+    └── recommendations.spec.ts # Recommendations 컴포넌트
+```
+
+### Claude Code 워크플로우
+
+**UI 수정 시 자동화된 프로세스**:
+1. 코드 수정 완료
+2. `npm run test:e2e` 자동 실행
+3. 테스트 실패 시:
+   - 에러 로그 분석
+   - 버그 수정
+   - 재테스트
+   - 최대 3회 재시도
+4. 테스트 성공 시:
+   - Git 커밋
+   - 작업 완료 보고
+
+**금지 사항**:
+- ❌ 테스트 없이 버튼/UI 수정 커밋
+- ❌ 테스트 실패를 무시하고 커밋
+- ❌ "나중에 테스트 추가" 약속
+
+### 테스트 작성 가이드
+
+**새 버튼 추가 시**:
+```typescript
+// tests/e2e/buttons.spec.ts
+test('새 버튼이 작동해야 함', async ({ page }) => {
+  await page.goto('/');
+  await page.click('button:has-text("새 버튼")');
+  await expect(page.locator('h1')).toContainText('예상 텍스트');
+});
+```
+
+**새 페이지 추가 시**:
+```typescript
+// tests/e2e/navigation.spec.ts
+test('새 페이지로 이동해야 함', async ({ page }) => {
+  await page.goto('/');
+  await page.click('button:has-text("새 페이지")');
+  await expect(page.locator('h1, h2').first()).toBeVisible();
+});
+```
+
+### 상세 문서
+
+테스트 전략 전체는 `TEST_STRATEGY.md` 참고
